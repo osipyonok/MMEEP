@@ -223,7 +223,7 @@ int main(int argc , char** argv) {
     double dem = point_elasticity(demand_model , dx , eq.first);
     cout << "Supply elasticity at the equilibrium: " << sel << endl;
     cout << "Demand elasticity at the equilibrium: " << dem << endl;
-    cout << (abs(dem) > sel ? "Stable" : "Unstable") << endl;
+    cout << (dem > sel ? "Stable" : "Unstable") << endl;
 
 
 /*
