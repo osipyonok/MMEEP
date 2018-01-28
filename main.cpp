@@ -20,8 +20,6 @@ struct node{
 };
 
 
-void print_table_line(const node & nd , double eld , double els);
-void print_table_line(string a , string b , string c , string d , string e);
 ostream& operator << (ostream & stream , const node & nd);
 istream& operator >> (istream & stream , node & nd);
 string print_model(double * a);
@@ -32,10 +30,9 @@ void wait_for_key();
 string inverse_model(double * params , double grant);
 
 
-const size_t SZT_0 = (size_t)0;
 vector<node> t(12);
 
-//// y = a + b / 2 ^ (x / c)
+// y = a + b / 2 ^ (x / c)
 void supply(int n, double x[], double y[], int & iflag){
     y[0] = y[1] = y[2] = 0;
     for(auto & e : t){
@@ -61,7 +58,7 @@ void demand(int n, double x[], double y[], int & iflag){
 
 
 double* estimate(void func(int , double[] , double[], int &), int n, vector<double> init_x){
-    int cnt = 150 * n * n;
+    int cnt = 150 * n * n; //must be not less then (n * (3 * n + 13)) / 2
     double eps = 1e-7;
     double *x = new double[n];
     double *y = new double[n];
@@ -88,16 +85,6 @@ inline double demand_model(double * a , double x){
 }
 
 
-double least_squares(double model(double *, double) , double * a , bool is_supply = true){
-    double res = 0;
-    for(auto & e : t){
-        double y = is_supply ? e.supply : e.demand;
-        res += pow(model(a , e.price) - y , 2);
-    }
-    return res;
-}
-
-
 pair<double , double> equilibrium(double model1(double *, double),
                                   double model2(double *, double), double * a1 , double * a2){
     double lx = -1000 , rx = 1000;
@@ -115,16 +102,6 @@ pair<double , double> equilibrium(double model1(double *, double),
         }
     }
     return {lx , model1(a1 , lx)};
-}
-
-double arc_elasticity(const node & old_state , const node & new_state , bool is_supply = true){
-    double delta_q = (is_supply ? new_state.supply : new_state.demand)
-                     - (is_supply ? old_state.supply : old_state.demand);
-    double delta_p = new_state.price - old_state.price;
-    double total_q = (is_supply ? new_state.supply : new_state.demand)
-                     + (is_supply ? old_state.supply : old_state.demand);
-    double total_p = new_state.price + old_state.price;
-    return delta_q * total_p / (delta_p * total_q);
 }
 
 inline double avg_demand(){
@@ -146,14 +123,14 @@ inline double avg_price(){
 }
 
 double supply_segment_arc_elasticity(){
-    double delta_q = t[11].supply - t[0].supply;
-    double delta_p = t[11].price - t[0].price;
+    double delta_q = t.back().supply - t.front().supply;
+    double delta_p = t.back().price - t[0].price;
     return (delta_q / delta_p) / (avg_supply() / avg_price());
 }
 
 double demand_segment_arc_elasticity(){
-    double delta_q = t[11].demand - t[0].supply;
-    double delta_p = t[11].price - t[0].price;
+    double delta_q = t.back().demand - t.front().demand;
+    double delta_p = t.back().price - t.front().price;
     return (delta_q / delta_p) / (avg_demand() / avg_price());
 }
 
@@ -175,11 +152,10 @@ string path_to_temp_files;
 int main(int argc , char** argv) {
     assert(argc > 0);
     cout.setf(ios::fixed);
-    cout.precision(3);
+    cout.precision(5);
     freopen(input_file , "r" , stdin);
 
     for(auto & e : t) cin >> e;
-//    for(auto & e : t) cout << "(" << e.price << "," << e.supply << ")," ;
 
 
 /*
@@ -196,7 +172,6 @@ int main(int argc , char** argv) {
     double* sx = estimate(supply , 3 , {240 , -250 , -0.02});
     cout << endl << "Supply Model:" << endl;
     print_model(sx);
-    //cout << "Diff " << least_squares(supply_model , sx , true) << endl;
 
 
 /*
@@ -205,7 +180,6 @@ int main(int argc , char** argv) {
     double* dx = estimate(demand, 3 , {10 , 200 , -0.2});
     cout << endl << "Demand model:" << endl;
     print_model(dx);
-    //cout << "Diff " << least_squares(demand_model , dx , false) << endl;
 
 
 /*
@@ -223,21 +197,13 @@ int main(int argc , char** argv) {
     double dem = point_elasticity(demand_model , dx , eq.first);
     cout << "Supply elasticity at the equilibrium: " << sel << endl;
     cout << "Demand elasticity at the equilibrium: " << dem << endl;
-    cout << (dem > sel ? "Stable" : "Unstable") << endl;
+    cout << (abs(dem) > abs(sel) ? "Stable" : "Unstable") << endl;
 
 
 /*
  * ARC ELASTICITY
  */
     cout << endl << "Arc elasticity" << endl;
-/*    print_table_line("Price", "Supply", "Demand", "Elasticity of demand", "Elasticity of supply");
-    print_table_line(to_string(t[0].price), to_string(t[0].demand), to_string(t[0].supply), "-----", "-----");
-    for(int i = 1 ; i < t.size() ; ++i){
-        print_table_line(t[i] , arc_elasticity(t[i] , t[i - 1] , false) , arc_elasticity(t[i] , t[i - 1] , true));
-    }
-    cout << endl << "Arc elasticity of first and last states" << endl;
-    print_table_line(to_string(t[0].price), to_string(t[0].demand), to_string(t[0].supply), "-----", "-----");
-    print_table_line(t[11] , arc_elasticity(t[11], t[0] , false) , arc_elasticity(t[11] , t[0] , true));*/
     double sup_el = supply_segment_arc_elasticity();
     double dem_el = demand_segment_arc_elasticity();
     cout << "Supply: " << sup_el << " - " << is_elastic(sup_el) << endl;
@@ -273,26 +239,6 @@ inline string print_model(double * a){
     return to_string(a[0]) + (a[1] >= 0 ? "+" : "") + to_string(a[1]) + "*exp(1)**(" + to_string(a[2]) + "*x)";
 }
 
-inline void whitespaces(int n){
-    for(; n >= 0 ; --n) cout << " ";
-}
-
-inline void print_middle(string a , size_t len){
-    size_t padding = max(SZT_0 , (len - a.size()));
-    whitespaces((padding + 1) / 2);
-    cout << a ;
-    whitespaces(padding / 2);
-}
-
-
-inline void print_table_line(const node & nd , double eld , double els){
-    string p = to_string(nd.price);
-    string d = to_string(nd.demand);
-    string s = to_string(nd.supply);
-    string ed = to_string(eld);
-    string es = to_string(els);
-    print_table_line(p , d , s , ed , es);
-}
 
 //for an inverse model x = ln((y - a)/b) / c
 void set_plot_ranges(Gnuplot & plot){
@@ -306,13 +252,6 @@ void set_plot_ranges(Gnuplot & plot){
     }
     plot.set_xrange(min_y - 1 , max_y + 1);
     plot.set_yrange(min_x - 1 , max_x + 1);
-}
-
-
-inline void print_table_line(string a , string b , string c , string d , string e){
-    whitespaces(3),print_middle(a , 10),whitespaces(3),print_middle(b , 10);
-    whitespaces(3),print_middle(c , 10),whitespaces(3),print_middle(d , 22);
-    whitespaces(3),print_middle(e , 22),cout << endl;
 }
 
 
@@ -361,8 +300,6 @@ void make_and_show_plot(Gnuplot & plot , double * supply_params , double * deman
     for(int log2g = 0 ; log2g < 4 ; ++log2g){
         plot.plot_equation(inverse_model(supply_params , 1 << log2g)
                 , "Supply with grant of size " + to_string(1 << log2g));
-    //    plot.plot_equation(inverse_model(demand_params , 1 << log2g)
-    //            , "Demand with grant of size " + to_string(1 << log2g));
     }
 
     plot.showonscreen();
